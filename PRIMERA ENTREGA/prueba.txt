@@ -1,0 +1,42 @@
+DECLARE.SECTION
+[a1, b1, c1] := [FLOAT, INTEGER, STRING]
+ENDDECLARE.SECTION
+
+PROGRAM.SECTION
+//* Comentario simple *//
+a1 ::= 99.5
+b1 ::= 32767
+c1 ::= "hola mundo"
+
+//* Comentario anidado un nivel *//
+//* outer //* inner *// outer *//
+
+d ::= 55.5
+e ::= 0
+f ::= .9999
+
+IF (a1 <= 30.5) THEN
+    WRITE c1
+ELSE
+    WRITE "mayor"
+ENDIF
+
+WHILE (e < 10) DO
+    e ::= e + 1
+ENDWHILE
+
+//* Ejemplos de POSITION *//
+resul1 ::= POSITION(4;[10,20,30,40,5,4])
+resul2 ::= POSITION(5;[2,2,2,4])
+resul3 ::= POSITION(1;[2,1,1,4])
+resul4 ::= POSITION(1;[])
+
+//* Operadores lógicos *//
+IF (a1 > 50 AND b1 >= 10) OR (e <= 20) THEN
+    WRITE "condicion compuesta"
+ENDIF
+
+//* Casos de error léxico (comentados para no afectar la compilación) *//
+//* Se verifican con tests unitarios: CTE_INT 32768, CTE_FLOAT infinito, STRING 31 chars *//
+
+ENDPROGRAM.SECTION
