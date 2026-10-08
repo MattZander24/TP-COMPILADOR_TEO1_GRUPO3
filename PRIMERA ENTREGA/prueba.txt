@@ -1,5 +1,7 @@
 DECLARE.SECTION
 [a1, b1, c1] := [FLOAT, INTEGER, STRING]
+[d, e, f] := [FLOAT, INTEGER, FLOAT]
+[resul1, resul2, resul3, resul4] := [INTEGER, INTEGER, INTEGER, INTEGER]
 ENDDECLARE.SECTION
 
 PROGRAM.SECTION
@@ -32,8 +34,12 @@ resul3 ::= POSITION(1;[2,1,1,4])
 resul4 ::= POSITION(1;[])
 
 //* Operadores lógicos *//
-IF (a1 > 50 AND b1 >= 10) OR (e <= 20) THEN
-    WRITE "condicion compuesta"
+IF (a1 > 50) AND (b1 >= 10) THEN
+    WRITE "condicion con AND"
+ENDIF
+
+IF (a1 > 50) OR (e <= 20) THEN
+    WRITE "condicion con OR"
 ENDIF
 
 ENDPROGRAM.SECTION
