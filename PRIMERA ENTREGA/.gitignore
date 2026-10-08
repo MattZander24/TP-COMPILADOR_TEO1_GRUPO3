@@ -13,6 +13,8 @@ buildNumber.properties
 # Java
 *.class
 *.log
+*.jar
+!dist/compilador.jar
 *.war
 *.nar
 *.ear
