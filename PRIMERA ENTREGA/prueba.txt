@@ -9,7 +9,7 @@ b1 ::= 32767
 c1 ::= "hola mundo"
 
 //* Comentario anidado un nivel *//
-//* outer //* inner *// outer *//
+//* fuera //* dentro *// fuera *//
 
 d ::= 55.5
 e ::= 0
@@ -21,7 +21,7 @@ ELSE
     WRITE "mayor"
 ENDIF
 
-WHILE (e < 10) DO
+WHILE (e < 10)
     e ::= e + 1
 ENDWHILE
 
@@ -35,8 +35,5 @@ resul4 ::= POSITION(1;[])
 IF (a1 > 50 AND b1 >= 10) OR (e <= 20) THEN
     WRITE "condicion compuesta"
 ENDIF
-
-//* Casos de error léxico (comentados para no afectar la compilación) *//
-//* Se verifican con tests unitarios: CTE_INT 32768, CTE_FLOAT infinito, STRING 31 chars *//
 
 ENDPROGRAM.SECTION
