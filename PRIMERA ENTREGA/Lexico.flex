@@ -44,6 +44,8 @@ SIGNOS               = ,|:|;
         profundidadComentario++;
         if (profundidadComentario > 2) {
             errores.add("ERROR LÉXICO [" + (yyline+1) + ":" + (yycolumn+1) + "]: Anidamiento de comentarios mayor a un nivel");
+            // Se devuelve error para que se muestre; el lexer sigue dentro del comentario
+            return new Symbol(sym.error, yyline+1, yycolumn+1, yytext());
         }
     }
 
@@ -61,6 +63,8 @@ SIGNOS               = ,|:|;
     // EOF dentro de comentario
     <<EOF>> {
         errores.add("ERROR LÉXICO [" + (yyline+1) + ":" + (yycolumn+1) + "]: Comentario no cerrado");
+        // Volver a YYINITIAL para que la próxima llamada devuelva EOF (si no, se repite este error para siempre)
+        yybegin(YYINITIAL);
         return new Symbol(sym.error, yyline+1, yycolumn+1, "");
     }
 }
@@ -120,8 +124,8 @@ SIGNOS               = ,|:|;
     // Constante entera con validación de rango 0..32767
     {DIGITO}{DIGITO}* {
         String lexema = yytext();
-        int valor = Integer.parseInt(lexema);
-        if (valor > 32767) {
+        // BigInteger: Integer.parseInt lanza excepción con números de más de 10 dígitos
+        if (new java.math.BigInteger(lexema).compareTo(java.math.BigInteger.valueOf(32767)) > 0) {
             errores.add("ERROR LÉXICO [" + (yyline+1) + ":" + (yycolumn+1) + "]: CTE_INT fuera de rango (0..32767) -> " + lexema);
             return new Symbol(sym.error, yyline+1, yycolumn+1, lexema);
         }

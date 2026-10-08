@@ -192,6 +192,13 @@ public class LexicoTest {
     }
 
     @Test
+    public void testCteIntGiganteEsError() throws Exception {
+        Lexico lexer = new Lexico(new StringReader("99999999999"));
+        assertEquals(sym.error, lexer.next_token().sym);
+        assertEquals(sym.EOF, lexer.next_token().sym);
+    }
+
+    @Test
     public void testCteIntCero() throws Exception {
         Lexico lexer = new Lexico(new StringReader("0"));
         Symbol token = lexer.next_token();
@@ -308,6 +315,7 @@ public class LexicoTest {
     public void testComentarioAnidadoDosNivelesError() throws Exception {
         Lexico lexer = new Lexico(new StringReader("a //* outer //* inner //* deep *// inner *// outer *// b"));
         assertEquals(sym.ID, lexer.next_token().sym);
+        assertEquals(sym.error, lexer.next_token().sym);
         assertEquals(sym.ID, lexer.next_token().sym);
         assertEquals(sym.EOF, lexer.next_token().sym);
         assertTrue(lexer.errores.size() > 0);
@@ -319,6 +327,7 @@ public class LexicoTest {
         Lexico lexer = new Lexico(new StringReader("a //* comentario sin cerrar"));
         assertEquals(sym.ID, lexer.next_token().sym);
         assertEquals(sym.error, lexer.next_token().sym);
+        assertEquals(sym.EOF, lexer.next_token().sym);
         assertTrue(lexer.errores.size() > 0);
         assertTrue(lexer.errores.get(0).contains("Comentario no cerrado"));
     }
