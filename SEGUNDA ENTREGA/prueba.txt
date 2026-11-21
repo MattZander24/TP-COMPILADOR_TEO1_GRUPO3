@@ -1,0 +1,56 @@
+DECLARE.SECTION
+[p1, p2, p3] := [FLOAT, FLOAT, INTEGER]
+[entero, flotante, texto, resul, auxiliar] := [INTEGER, FLOAT, STRING, INTEGER, FLOAT]
+[otra, mas] := [STRING, INTEGER]
+ENDDECLARE.SECTION
+
+PROGRAM.SECTION
+//* Comentario simple *//
+p1 ::= 99999.99
+p2 ::= 99.
+p3 ::= 33
+entero ::= 42
+flotante ::= .9999
+texto ::= "esto es un string de prueba"
+auxiliar ::= (p1 + p2) * 2 - entero / 3
+
+otra ::= "otro texto"
+mas ::= 7
+
+//* Comentario anidado un nivel *//
+//* externo //* interno *// externo *//
+
+IF p1 >= 10.5 AND p2 <= 99. THEN
+    WRITE "condicion AND"
+ELSE
+    WRITE "condicion else"
+ENDIF
+
+IF mas == 7 OR auxiliar != 0.5 THEN
+    WRITE 123
+ENDIF
+
+IF flotante < 100.0 THEN
+    WRITE 45.5
+ENDIF
+
+IF p1 > 1 THEN
+    WRITE mas
+ENDIF
+
+WHILE (entero < 10)
+    entero ::= entero + 1
+ENDWHILE
+
+resul ::= POSITION(4;[10,20,30,40,5,4])
+resul ::= POSITION(5;[2,2,2,4])
+resul ::= POSITION(1;[2,1,1,4])
+resul ::= POSITION(1;[])
+auxiliar ::= POSITION(1;[3,1]) + 1
+
+WRITE "fin del programa"
+WRITE 999
+WRITE 88.8
+WRITE mas
+
+ENDPROGRAM.SECTION

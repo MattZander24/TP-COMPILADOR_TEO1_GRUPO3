@@ -1,0 +1,805 @@
+package ar.edu.unlu.compilador;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
+
+/*==================================================================
+  Código compartido por todas las acciones semánticas.
+  Se incluye en la clase de acciones que genera CUP.
+ ==================================================================*/
+action code {:
+
+    /** Salida ordenada: líneas "Regla N: ..." y mensajes "[POSITION] ...". */
+    public final List<String> reglas = new ArrayList<>();
+
+    /** Errores semánticos acumulados (no detienen el análisis). */
+    public final List<String> erroresSemanticos = new ArrayList<>();
+
+    /** Texto literal de cada producción (sección 5.2 del enunciado). */
+    static final String[] REGLAS = new String[52];
+    static {
+        REGLAS[1]  = "<programa> ::= <seccion_declaracion> <seccion_programa>";
+        REGLAS[2]  = "<seccion_declaracion> ::= DECLARE <lista_declaraciones> ENDDECLARE";
+        REGLAS[3]  = "<lista_declaraciones> ::= <lista_declaraciones> <declaracion>";
+        REGLAS[4]  = "<lista_declaraciones> ::= <declaracion>";
+        REGLAS[5]  = "<declaracion> ::= COR_A <lista_var_tipo> COR_C";
+        REGLAS[6]  = "<lista_var_tipo> ::= ID COMA <lista_var_tipo> COMA <tipo>";
+        REGLAS[7]  = "<lista_var_tipo> ::= ID COR_C ASIG_DECL COR_A <tipo>";
+        REGLAS[8]  = "<tipo> ::= INTEGER_T";
+        REGLAS[9]  = "<tipo> ::= FLOAT_T";
+        REGLAS[10] = "<tipo> ::= STRING_T";
+        REGLAS[11] = "<seccion_programa> ::= PROGRAM <lista_sentencias> ENDPROGRAM";
+        REGLAS[12] = "<lista_sentencias> ::= <lista_sentencias> <sentencia>";
+        REGLAS[13] = "<lista_sentencias> ::= <sentencia>";
+        REGLAS[14] = "<sentencia> ::= <asignacion>";
+        REGLAS[15] = "<sentencia> ::= <seleccion>";
+        REGLAS[16] = "<sentencia> ::= <iteracion>";
+        REGLAS[17] = "<sentencia> ::= <salida>";
+        REGLAS[18] = "<asignacion> ::= ID ASIGNACION <expresion>";
+        REGLAS[19] = "<asignacion> ::= ID ASIGNACION CTE_STRING";
+        REGLAS[20] = "<position> ::= POSITION PAR_A CTE_INT PUNTO_Y_COMA COR_A <lista_constantes> COR_C PAR_C";
+        REGLAS[21] = "<position> ::= POSITION PAR_A CTE_INT PUNTO_Y_COMA COR_A COR_C PAR_C";
+        REGLAS[22] = "<lista_constantes> ::= <lista_constantes> COMA CTE_INT";
+        REGLAS[23] = "<lista_constantes> ::= CTE_INT";
+        REGLAS[24] = "<seleccion> ::= IF <condicion> THEN <lista_sentencias> ENDIF";
+        REGLAS[25] = "<seleccion> ::= IF <condicion> THEN <lista_sentencias> ELSE <lista_sentencias> ENDIF";
+        REGLAS[26] = "<iteracion> ::= WHILE PAR_A <condicion> PAR_C <lista_sentencias> ENDWHILE";
+        REGLAS[27] = "<condicion> ::= <comparacion>";
+        REGLAS[28] = "<condicion> ::= <comparacion> AND <comparacion>";
+        REGLAS[29] = "<condicion> ::= <comparacion> OR <comparacion>";
+        REGLAS[30] = "<comparacion> ::= <expresion> <op_relacional> <expresion>";
+        REGLAS[31] = "<op_relacional> ::= OP_IGUAL";
+        REGLAS[32] = "<op_relacional> ::= OP_DISTINTO";
+        REGLAS[33] = "<op_relacional> ::= OP_MENOR";
+        REGLAS[34] = "<op_relacional> ::= OP_MAYOR";
+        REGLAS[35] = "<op_relacional> ::= OP_MENOR_IGUAL";
+        REGLAS[36] = "<op_relacional> ::= OP_MAYOR_IGUAL";
+        REGLAS[37] = "<salida> ::= WRITE CTE_STRING";
+        REGLAS[38] = "<salida> ::= WRITE CTE_INT";
+        REGLAS[39] = "<salida> ::= WRITE CTE_FLOAT";
+        REGLAS[40] = "<salida> ::= WRITE ID";
+        REGLAS[41] = "<expresion> ::= <expresion> OP_SUMA <termino>";
+        REGLAS[42] = "<expresion> ::= <expresion> OP_RESTA <termino>";
+        REGLAS[43] = "<expresion> ::= <termino>";
+        REGLAS[44] = "<termino> ::= <termino> OP_MULT <factor>";
+        REGLAS[45] = "<termino> ::= <termino> OP_DIV <factor>";
+        REGLAS[46] = "<termino> ::= <factor>";
+        REGLAS[47] = "<factor> ::= ID";
+        REGLAS[48] = "<factor> ::= CTE_INT";
+        REGLAS[49] = "<factor> ::= CTE_FLOAT";
+        REGLAS[50] = "<factor> ::= PAR_A <expresion> PAR_C";
+        REGLAS[51] = "<factor> ::= <position>";
+    }
+
+    /** Reglas que no generan salida (sección 7.1 del enunciado). */
+    static final Set<Integer> SILENCIOSAS = new HashSet<>(Arrays.asList(
+        3, 4, 12, 13, 14, 15, 16, 17, 27, 31, 32, 33, 34, 35, 36, 43, 46, 50
+    ));
+
+    /** Registra la reducción de la regla n (las silenciosas no imprimen). */
+    void regla(int n) {
+        if (!SILENCIOSAS.contains(n)) {
+            reglas.add("Regla " + n + ": " + REGLAS[n]);
+        }
+    }
+
+    /** Mensaje informativo (por ejemplo, evaluación de POSITION). */
+    void mensaje(String texto) {
+        reglas.add(texto);
+    }
+
+    /** Registra un error semántico con posición [línea:columna]. */
+    void errorSemantico(int linea, int columna, String detalle) {
+        erroresSemanticos.add("[" + linea + ":" + columna + "] Error semántico: " + detalle);
+    }
+
+    /** Tipo declarado de una variable, o null si no está declarada. */
+    Tipo tipoDeclarado(String nombre) {
+        TablaSimbolos tabla = parser.lexer.tablaSimbolos;
+        return tabla.estaDeclarado(nombre) ? tabla.getTipo(nombre) : null;
+    }
+
+    /** Regla 5: registra cada variable con su tipo en la tabla de símbolos. */
+    void registrarDeclaracion(DeclInfo info) {
+        TablaSimbolos tabla = parser.lexer.tablaSimbolos;
+        for (int i = 0; i < info.vars.size(); i++) {
+            String nombre = info.vars.get(i);
+            Tipo tipo = info.tipos.get(i);
+            int[] pos = info.posiciones.get(i);
+            if (tabla.estaDeclarado(nombre)) {
+                errorSemantico(pos[0], pos[1], "variable ya declarada: " + nombre);
+            } else {
+                tabla.setTipo(nombre, tipo);
+            }
+        }
+    }
+
+    /** Reglas 18/19: verifica la asignación sobre una variable declarada. */
+    void verificarAsignacion(String id, int linea, int columna, Tipo tipoExpresion, boolean esString) {
+        Tipo declarado = tipoDeclarado(id);
+        if (declarado == null) {
+            errorSemantico(linea, columna, "variable no declarada: " + id);
+            return;
+        }
+        if (tipoExpresion == Tipo.ERROR) {
+            return;
+        }
+        if (esString) {
+            if (declarado != Tipo.STRING) {
+                errorSemantico(linea, columna, "asignación incompatible: se esperaba CTE_STRING para " + id);
+            }
+            return;
+        }
+        if (declarado == Tipo.STRING || tipoExpresion == Tipo.STRING) {
+            errorSemantico(linea, columna, "asignación incompatible");
+            return;
+        }
+        if (declarado == Tipo.INTEGER && tipoExpresion == Tipo.FLOAT) {
+            errorSemantico(linea, columna, "asignación incompatible (FLOAT a INTEGER)");
+        }
+    }
+
+    /** Reglas 41/42/44/45 y 30: ambos operandos deben ser numéricos. */
+    void verificarOperandosNumericos(Tipo a, Tipo b, int linea, int columna, String contexto) {
+        if (a == Tipo.STRING || b == Tipo.STRING) {
+            errorSemantico(linea, columna, "operando no numérico (STRING) en " + contexto);
+        }
+    }
+
+    /** Tipo resultado de una operación aritmética o comparación. */
+    Tipo tipoBinario(Tipo a, Tipo b) {
+        if (a == Tipo.ERROR || b == Tipo.ERROR || a == Tipo.STRING || b == Tipo.STRING) {
+            return Tipo.ERROR;
+        }
+        return (a == Tipo.FLOAT || b == Tipo.FLOAT) ? Tipo.FLOAT : Tipo.INTEGER;
+    }
+
+    /** Reglas 28/29: combina los tipos de dos comparaciones de una condición. */
+    Tipo tipoCondicion(Tipo a, Tipo b) {
+        return (a == Tipo.ERROR || b == Tipo.ERROR) ? Tipo.ERROR : Tipo.INTEGER;
+    }
+
+    /** Regla 40: WRITE de una variable debe ser numérica y declarada. */
+    void verificarWriteId(String id, int linea, int columna) {
+        Tipo declarado = tipoDeclarado(id);
+        if (declarado == null) {
+            errorSemantico(linea, columna, "variable no declarada: " + id);
+        } else if (declarado == Tipo.STRING) {
+            errorSemantico(linea, columna, "no se puede escribir una variable STRING con WRITE ID");
+        }
+    }
+
+    /** Reglas 20/21: evaluación en tiempo de compilación de POSITION. */
+    void evaluarPosition(int pivot, int lineaPivot, int columnaPivot,
+                         List<Integer> lista, int lineaLista, int columnaLista) {
+        if (lista.isEmpty()) {
+            mensaje("[POSITION] La lista está vacía");
+            return;
+        }
+        boolean valido = true;
+        if (pivot < 1) {
+            errorSemantico(lineaPivot, columnaPivot, "el elemento pivot debe ser mayor o igual a 1");
+            valido = false;
+        }
+        for (Integer elemento : lista) {
+            if (elemento < 1) {
+                errorSemantico(lineaLista, columnaLista, "la lista debe contener enteros positivos");
+                valido = false;
+                break;
+            }
+        }
+        if (!valido) {
+            return;
+        }
+        int posicion = lista.indexOf(pivot);
+        if (posicion >= 0) {
+            mensaje("[POSITION] Elemento encontrado en posición " + (posicion + 1));
+        } else {
+            mensaje("[POSITION] Elemento no encontrado");
+        }
+    }
+
+:};
+
+/*==================================================================
+  Código del parser: scanner, constructor, errores y acceso a resultados.
+ ==================================================================*/
+parser code {:
+
+    /** Lexer que alimenta al parser (se asigna por constructor). */
+    public Lexico lexer;
+
+    /** Errores sintácticos (el primero es fatal). */
+    public final List<String> erroresSintacticos = new ArrayList<>();
+
+    public Sintactico(Lexico lex) {
+        this.lexer = lex;
+    }
+
+    /** Salida ordenada: reglas reducidas y mensajes [POSITION]. */
+    public List<String> getReglas() {
+        return (action_obj == null) ? new ArrayList<String>() : action_obj.reglas;
+    }
+
+    /** Errores semánticos acumulados durante el análisis. */
+    public List<String> getErroresSemanticos() {
+        return (action_obj == null) ? new ArrayList<String>() : action_obj.erroresSemanticos;
+    }
+
+    /** Errores sintácticos informados (a lo sumo uno: el primero es fatal). */
+    public List<String> getErroresSintacticos() {
+        return erroresSintacticos;
+    }
+
+    /** Registra el primer error de sintaxis/léxico (los siguientes se ignoran). */
+    private void registrarErrorSintactico(java_cup.runtime.Symbol token) {
+        if (!erroresSintacticos.isEmpty()) {
+            return;
+        }
+        if (token != null && token.sym == sym.error && lexer != null && !lexer.errores.isEmpty()) {
+            // El token "error" proviene del lexer: se informan sus mensajes.
+            erroresSintacticos.addAll(lexer.errores);
+            lexer.errores.clear();
+            return;
+        }
+        erroresSintacticos.add(mensajeErrorSintactico(token));
+    }
+
+    /** Construye el mensaje de error sintáctico con la lista de esperados. */
+    private String mensajeErrorSintactico(java_cup.runtime.Symbol token) {
+        String lexema;
+        if (token.sym == sym.EOF || token.value == null) {
+            lexema = "EOF";
+        } else {
+            lexema = String.valueOf(token.value);
+        }
+        StringBuilder esperados = new StringBuilder();
+        for (Integer id : expected_token_ids()) {
+            if (esperados.length() > 0) {
+                esperados.append(", ");
+            }
+            esperados.append(symbl_name_from_id(id));
+        }
+        return "[" + token.left + ":" + token.right + "] Error sintáctico: token inesperado '"
+                + lexema + "'. Se esperaba: " + esperados;
+    }
+
+    @Override
+    public void syntax_error(java_cup.runtime.Symbol cur_token) {
+        registrarErrorSintactico(cur_token);
+    }
+
+    @Override
+    public void unrecovered_syntax_error(java_cup.runtime.Symbol cur_token) {
+        // El primer error sintáctico es fatal: se informa y parse() se detiene.
+        registrarErrorSintactico(cur_token);
+    }
+
+:};
+
+/* El parser toma los tokens directamente del lexer. */
+scan with {: return lexer.next_token(); :}
+
+/*==================================================================
+  Terminales (deben coincidir con los nombres que genera el lexer)
+ ==================================================================*/
+terminal
+    DECLARE, ENDDECLARE, PROGRAM, ENDPROGRAM,
+    IF, THEN, ELSE, ENDIF, WHILE, ENDWHILE,
+    WRITE, POSITION, AND, OR,
+    INTEGER_T, FLOAT_T, STRING_T,
+    ASIGNACION, ASIG_DECL,
+    OP_IGUAL, OP_DISTINTO, OP_MENOR_IGUAL, OP_MAYOR_IGUAL,
+    OP_MENOR, OP_MAYOR,
+    OP_SUMA, OP_RESTA, OP_MULT, OP_DIV,
+    COMA, PUNTO_Y_COMA, PAR_A, PAR_C, COR_A, COR_C,
+    /* El lexer también produce estos tokens; no forman parte de la GLC. */
+    PUNTO, LLAV_A, LLAV_C;
+
+terminal String ID, CTE_INT, CTE_FLOAT, CTE_STRING;
+
+/*==================================================================
+  No terminales y tipos de valores semánticos
+  ==================================================================*/
+non terminal
+    programa, seccion_declaracion, seccion_programa, lista_declaraciones,
+    declaracion, lista_sentencias, sentencia, asignacion, seleccion,
+    iteracion, salida, op_relacional;
+
+non terminal Tipo
+    tipo, expresion, termino, factor, position, condicion, comparacion;
+
+non terminal DeclInfo lista_var_tipo;
+
+non terminal java.util.List<Integer> lista_constantes;
+
+start with programa;
+
+/*==================================================================
+  Gramática (sección 5.2 del enunciado — no modificar)
+  ==================================================================*/
+
+programa ::=
+    seccion_declaracion
+    seccion_programa
+    {:
+        regla(1);
+    :}
+;
+
+seccion_declaracion ::=
+    DECLARE
+    lista_declaraciones
+    ENDDECLARE
+    {:
+        regla(2);
+    :}
+;
+
+lista_declaraciones ::=
+    lista_declaraciones
+    declaracion
+    {:
+        regla(3);
+    :}
+;
+
+lista_declaraciones ::=
+    declaracion
+    {:
+        regla(4);
+    :}
+;
+
+declaracion ::=
+    COR_A
+    lista_var_tipo:lvt
+    COR_C
+    {:
+        regla(5);
+        registrarDeclaracion(lvt);
+    :}
+;
+
+lista_var_tipo ::=
+    ID:id
+    COMA
+    lista_var_tipo:inner
+    COMA
+    tipo:t
+    {:
+        regla(6);
+        inner.vars.addFirst(id);
+        inner.tipos.addLast(t);
+        inner.posiciones.addFirst(new int[]{idleft, idright});
+        RESULT = inner;
+    :}
+;
+
+lista_var_tipo ::=
+    ID:id
+    COR_C
+    ASIG_DECL
+    COR_A
+    tipo:t
+    {:
+        regla(7);
+        DeclInfo info = new DeclInfo();
+        info.vars.add(id);
+        info.tipos.add(t);
+        info.posiciones.add(new int[]{idleft, idright});
+        RESULT = info;
+    :}
+;
+
+tipo ::=
+    INTEGER_T
+    {:
+        regla(8);
+        RESULT = Tipo.INTEGER;
+    :}
+;
+
+tipo ::=
+    FLOAT_T
+    {:
+        regla(9);
+        RESULT = Tipo.FLOAT;
+    :}
+;
+
+tipo ::=
+    STRING_T
+    {:
+        regla(10);
+        RESULT = Tipo.STRING;
+    :}
+;
+
+seccion_programa ::=
+    PROGRAM
+    lista_sentencias
+    ENDPROGRAM
+    {:
+        regla(11);
+    :}
+;
+
+lista_sentencias ::=
+    lista_sentencias
+    sentencia
+    {:
+        regla(12);
+    :}
+;
+
+lista_sentencias ::=
+    sentencia
+    {:
+        regla(13);
+    :}
+;
+
+sentencia ::=
+    asignacion
+    {:
+        regla(14);
+    :}
+;
+
+sentencia ::=
+    seleccion
+    {:
+        regla(15);
+    :}
+;
+
+sentencia ::=
+    iteracion
+    {:
+        regla(16);
+    :}
+;
+
+sentencia ::=
+    salida
+    {:
+        regla(17);
+    :}
+;
+
+asignacion ::=
+    ID:id
+    ASIGNACION
+    expresion:expr
+    {:
+        regla(18);
+        verificarAsignacion(id, idleft, idright, expr, false);
+    :}
+;
+
+asignacion ::=
+    ID:id
+    ASIGNACION
+    CTE_STRING
+    {:
+        regla(19);
+        verificarAsignacion(id, idleft, idright, null, true);
+    :}
+;
+
+position ::=
+    POSITION
+    PAR_A
+    CTE_INT:piv
+    PUNTO_Y_COMA
+    COR_A:ca
+    lista_constantes:lista
+    COR_C
+    PAR_C
+    {:
+        regla(20);
+        evaluarPosition(Integer.parseInt(piv), pivleft, pivright,
+                        lista, caleft, caright);
+        RESULT = Tipo.INTEGER;
+    :}
+;
+
+position ::=
+    POSITION
+    PAR_A
+    CTE_INT:piv
+    PUNTO_Y_COMA
+    COR_A:ca
+    COR_C
+    PAR_C
+    {:
+        regla(21);
+        evaluarPosition(Integer.parseInt(piv), pivleft, pivright,
+                        new LinkedList<Integer>(), caleft, caright);
+        RESULT = Tipo.INTEGER;
+    :}
+;
+
+lista_constantes ::=
+    lista_constantes:lc
+    COMA
+    CTE_INT:n
+    {:
+        regla(22);
+        lc.add(Integer.parseInt(n));
+        RESULT = lc;
+    :}
+;
+
+lista_constantes ::=
+    CTE_INT:n
+    {:
+        regla(23);
+        List<Integer> nueva = new LinkedList<Integer>();
+        nueva.add(Integer.parseInt(n));
+        RESULT = nueva;
+    :}
+;
+
+seleccion ::=
+    IF
+    condicion
+    THEN
+    lista_sentencias
+    ENDIF
+    {:
+        regla(24);
+    :}
+;
+
+seleccion ::=
+    IF
+    condicion
+    THEN
+    lista_sentencias
+    ELSE
+    lista_sentencias
+    ENDIF
+    {:
+        regla(25);
+    :}
+;
+
+iteracion ::=
+    WHILE
+    PAR_A
+    condicion
+    PAR_C
+    lista_sentencias
+    ENDWHILE
+    {:
+        regla(26);
+    :}
+;
+
+condicion ::=
+    comparacion:comp
+    {:
+        regla(27);
+        RESULT = comp;
+    :}
+;
+
+condicion ::=
+    comparacion:c1
+    AND
+    comparacion:c2
+    {:
+        regla(28);
+        RESULT = tipoCondicion(c1, c2);
+    :}
+;
+
+condicion ::=
+    comparacion:c1
+    OR
+    comparacion:c2
+    {:
+        regla(29);
+        RESULT = tipoCondicion(c1, c2);
+    :}
+;
+
+comparacion ::=
+    expresion:e1
+    op_relacional:op
+    expresion:e2
+    {:
+        regla(30);
+        verificarOperandosNumericos(e1, e2, opleft, opright, "comparación");
+        RESULT = tipoBinario(e1, e2);
+    :}
+;
+
+op_relacional ::=
+    OP_IGUAL
+    {:
+        regla(31);
+    :}
+;
+
+op_relacional ::=
+    OP_DISTINTO
+    {:
+        regla(32);
+    :}
+;
+
+op_relacional ::=
+    OP_MENOR
+    {:
+        regla(33);
+    :}
+;
+
+op_relacional ::=
+    OP_MAYOR
+    {:
+        regla(34);
+    :}
+;
+
+op_relacional ::=
+    OP_MENOR_IGUAL
+    {:
+        regla(35);
+    :}
+;
+
+op_relacional ::=
+    OP_MAYOR_IGUAL
+    {:
+        regla(36);
+    :}
+;
+
+salida ::=
+    WRITE
+    CTE_STRING
+    {:
+        regla(37);
+    :}
+;
+
+salida ::=
+    WRITE
+    CTE_INT
+    {:
+        regla(38);
+    :}
+;
+
+salida ::=
+    WRITE
+    CTE_FLOAT
+    {:
+        regla(39);
+    :}
+;
+
+salida ::=
+    WRITE
+    ID:id
+    {:
+        regla(40);
+        verificarWriteId(id, idleft, idright);
+    :}
+;
+
+expresion ::=
+    expresion:e1
+    OP_SUMA:ops
+    termino:t
+    {:
+        regla(41);
+        verificarOperandosNumericos(e1, t, opsleft, opsright, "expresión aritmética");
+        RESULT = tipoBinario(e1, t);
+    :}
+;
+
+expresion ::=
+    expresion:e1
+    OP_RESTA:ops
+    termino:t
+    {:
+        regla(42);
+        verificarOperandosNumericos(e1, t, opsleft, opsright, "expresión aritmética");
+        RESULT = tipoBinario(e1, t);
+    :}
+;
+
+expresion ::=
+    termino:t
+    {:
+        regla(43);
+        RESULT = t;
+    :}
+;
+
+termino ::=
+    termino:t1
+    OP_MULT:ops
+    factor:f
+    {:
+        regla(44);
+        verificarOperandosNumericos(t1, f, opsleft, opsright, "expresión aritmética");
+        RESULT = tipoBinario(t1, f);
+    :}
+;
+
+termino ::=
+    termino:t1
+    OP_DIV:ops
+    factor:f
+    {:
+        regla(45);
+        verificarOperandosNumericos(t1, f, opsleft, opsright, "expresión aritmética");
+        RESULT = tipoBinario(t1, f);
+    :}
+;
+
+termino ::=
+    factor:f
+    {:
+        regla(46);
+        RESULT = f;
+    :}
+;
+
+factor ::=
+    ID:id
+    {:
+        regla(47);
+        Tipo declarado = tipoDeclarado(id);
+        if (declarado == null) {
+            errorSemantico(idleft, idright, "variable no declarada: " + id);
+            RESULT = Tipo.ERROR;
+        } else {
+            RESULT = declarado;
+        }
+    :}
+;
+
+factor ::=
+    CTE_INT
+    {:
+        regla(48);
+        RESULT = Tipo.INTEGER;
+    :}
+;
+
+factor ::= 
+    CTE_FLOAT
+    {:
+        regla(49);
+        RESULT = Tipo.FLOAT;
+    :}
+;
+
+factor ::=
+    PAR_A
+    expresion:e
+    PAR_C
+    {:
+        regla(50);
+        RESULT = e;
+    :}
+;
+
+factor ::=
+    position:p
+    {:
+        regla(51);
+        RESULT = p;
+    :}
+;

@@ -1,0 +1,38 @@
+NOMBRE      TOKEN       TIPO  VALOR   LONG
+p1           ID           Float  —        —     
+p2           ID           Float  —        —     
+p3           ID           Integer —        —     
+entero       ID           Integer —        —     
+flotante     ID           Float  —        —     
+texto        ID           String —        —     
+resul        ID           Integer —        —     
+auxiliar     ID           Float  —        —     
+otra         ID           String —        —     
+mas          ID           Integer —        —     
+_99999.99    CTE_FLOAT    —      99999.99 —     
+_99.         CTE_FLOAT    —      99.      —     
+_33          CTE_INT      —      33       —     
+_42          CTE_INT      —      42       —     
+_.9999       CTE_FLOAT    —      .9999    —     
+_esto_es_un_string_de_prueba CTE_STRING   —      esto es un string de prueba 27    
+_2           CTE_INT      —      2        —     
+_3           CTE_INT      —      3        —     
+_otro_texto  CTE_STRING   —      otro texto 10    
+_7           CTE_INT      —      7        —     
+_10.5        CTE_FLOAT    —      10.5     —     
+_condicion_AND CTE_STRING   —      condicion AND 13    
+_condicion_else CTE_STRING   —      condicion else 14    
+_0.5         CTE_FLOAT    —      0.5      —     
+_123         CTE_INT      —      123      —     
+_100.0       CTE_FLOAT    —      100.0    —     
+_45.5        CTE_FLOAT    —      45.5     —     
+_1           CTE_INT      —      1        —     
+_10          CTE_INT      —      10       —     
+_4           CTE_INT      —      4        —     
+_20          CTE_INT      —      20       —     
+_30          CTE_INT      —      30       —     
+_40          CTE_INT      —      40       —     
+_5           CTE_INT      —      5        —     
+_fin_del_programa CTE_STRING   —      fin del programa 16    
+_999         CTE_INT      —      999      —     
+_88.8        CTE_FLOAT    —      88.8     —     
